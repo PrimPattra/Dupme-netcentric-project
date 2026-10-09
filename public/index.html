@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Remember! — Dup Me</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky:#4E86F5; --panel:#1E2E72; --panel-light:#28418F;
+    --ink:#13152A; --cream:#FFF6E6; --yellow:#FFCB3D;
+    --green:#4CD97B; --red:#FF5C5C;
+    --p1:#FF7A4A; --p2:#2FD8C8;
+    --shadow-a:#0B1440; --shadow-b:#0A0A16;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--sky); font-family:'Nunito',sans-serif; color:var(--ink);
+    min-height:100vh; display:flex; justify-content:center; padding:20px 12px 40px;
+  }
+  .doodles{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:radial-gradient(circle, rgba(255,255,255,0.10) 3px, transparent 3.5px);
+    background-size:46px 46px;
+  }
+  .phone{ position:relative; z-index:1; width:100%; max-width:420px; }
+
+  .topbar{ display:flex; align-items:center; justify-content:flex-end; margin-bottom:14px; }
+  .conn-chip{ font-size:11px; font-weight:800; color:var(--cream); display:flex; align-items:center; gap:6px; }
+  .conn-dot{ width:10px; height:10px; border-radius:50%; background:var(--yellow); border:2px solid var(--ink); }
+
+  .title-wrap{ text-align:center; margin:6px 0 14px; }
+  .title{
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:40px; color:var(--cream);
+    -webkit-text-stroke:3px var(--ink); paint-order:stroke fill; letter-spacing:1px; margin:0;
+  }
+  .subtitle-pill{
+    display:inline-block; margin-top:6px; background:var(--yellow); border:3px solid var(--ink);
+    border-radius:20px; padding:5px 16px; font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:13px; box-shadow:3px 3px 0 var(--shadow-b);
+  }
+
+  .score-row{ display:flex; gap:10px; margin-bottom:14px; }
+  .player-card{
+    flex:1; background:var(--panel); border:3px solid var(--ink); border-radius:14px;
+    padding:10px 8px; text-align:center; box-shadow:4px 4px 0 var(--shadow-a); position:relative;
+  }
+  .player-card.active{ background:var(--panel-light); }
+  .player-card .avatar{
+    width:44px; height:44px; margin:0 auto 4px; border-radius:10px; border:3px solid var(--ink);
+    display:flex; align-items:center; justify-content:center; font-size:24px;
+  }
+  .player-card.p1 .avatar{ background:var(--p1); }
+  .player-card.p2 .avatar{ background:var(--p2); }
+  .player-card .pname{ font-family:'Fredoka',sans-serif; font-weight:600; font-size:13px; color:var(--cream); margin-bottom:2px; }
+  .player-card .you{ font-size:9px; color:var(--yellow); font-weight:900; letter-spacing:1px; }
+  .player-card .pscore{ font-weight:900; font-size:24px; color:var(--yellow); }
+  .player-card .role-tag{
+    position:absolute; top:-10px; left:50%; transform:translateX(-50%);
+    border:2px solid var(--ink); border-radius:8px; padding:1px 8px;
+    font-size:10px; font-weight:800; white-space:nowrap;
+  }
+  .vs{
+    align-self:center; font-family:'Fredoka',sans-serif; font-weight:700; color:var(--cream);
+    -webkit-text-stroke:2px var(--ink); paint-order:stroke fill; font-size:18px;
+  }
+
+  .turn-banner{
+    background:var(--ink); color:var(--cream); border:3px solid var(--ink); border-radius:12px;
+    padding:9px 12px; text-align:center; font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:13px; margin-bottom:12px;
+  }
+  .turn-banner b{ color:var(--yellow); }
+
+  .stage{
+    background:var(--cream); border:4px solid var(--ink); border-radius:16px; padding:16px 12px;
+    box-shadow:5px 5px 0 var(--shadow-a); margin-bottom:10px;
+  }
+  .stage-label{
+    font-weight:800; font-size:11px; letter-spacing:1px; color:#6b6f8a; margin-bottom:10px;
+    display:flex; justify-content:space-between;
+  }
+  .slots{ display:flex; justify-content:center; gap:6px; flex-wrap:wrap; min-height:48px; align-items:center; }
+  .slots .empty-msg{ color:#9aa0bf; font-weight:800; font-size:12px; }
+  .slot{
+    width:46px; height:46px; border:3px dashed #B9C1E0; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; font-size:23px; background:#fff; position:relative;
+  }
+  .slot.filled{ border-style:solid; border-color:var(--ink); background:var(--yellow); box-shadow:2px 2px 0 var(--shadow-b); }
+  .slot.correct{ border-style:solid; background:var(--green); border-color:var(--ink); box-shadow:2px 2px 0 var(--shadow-b); }
+  .slot.wrong{ border-style:solid; background:var(--red); border-color:var(--ink); box-shadow:2px 2px 0 var(--shadow-b); }
+  .slot.wrong::after{
+    content:"✖"; position:absolute; top:-9px; right:-7px; font-size:12px; color:var(--cream);
+    background:var(--ink); border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center;
+  }
+  .slot.missed{ opacity:0.4; }
+  .slot.current{ border-color:var(--ink); border-style:solid; background:#fff; }
+  .slot.hidden-step{ color:#B9C1E0; font-family:'Fredoka',sans-serif; font-weight:700; font-size:18px; }
+
+  .timer-row{ display:flex; align-items:center; gap:10px; margin:12px 0 14px; }
+  .timer-track{ flex:1; height:14px; background:var(--ink); border:3px solid var(--ink); border-radius:8px; overflow:hidden; }
+  .timer-fill{ height:100%; width:100%; background:var(--green); border-radius:4px; transition:width 1s linear, background .3s linear; }
+  .timer-num{
+    min-width:58px; text-align:center; background:var(--ink); color:var(--yellow);
+    border-radius:10px; padding:4px 8px; font-weight:900; font-size:18px; font-variant-numeric:tabular-nums;
+  }
+
+  .btn-row{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+  .emoji-btn{
+    background:#fff; border:3px solid var(--ink); border-radius:14px; padding:9px 2px 7px; text-align:center;
+    box-shadow:4px 4px 0 var(--shadow-b); cursor:pointer; user-select:none; transition:transform .05s, box-shadow .05s;
+    font-family:inherit;
+  }
+  .emoji-btn:active{ transform:translate(4px,4px); box-shadow:none; }
+  .emoji-btn .glyph{ font-size:27px; display:block; }
+  .emoji-btn .label{ font-weight:800; font-size:9px; letter-spacing:0.5px; margin-top:2px; display:block; }
+  .emoji-btn.pig{ background:#FFC7D6; }
+  .emoji-btn.dog{ background:#E3B57C; }
+  .emoji-btn.crow{ background:#C9CBE0; }
+  .emoji-btn.chicken{ background:#FFE79A; }
+  .emoji-btn.cow{ background:#D7F0C8; }
+  .emoji-btn:disabled{ opacity:0.45; pointer-events:none; box-shadow:none; transform:none; }
+  .btn-hint{ text-align:center; color:#EAF0FF; font-size:11px; font-weight:800; margin-top:10px; min-height:14px; }
+  .done-btn{
+    display:block; margin:12px auto 0; background:var(--yellow); border:3px solid var(--ink); border-radius:12px;
+    padding:9px 22px; font-family:'Fredoka',sans-serif; font-weight:600; font-size:15px; cursor:pointer;
+    box-shadow:4px 4px 0 var(--shadow-b);
+  }
+  .done-btn:active{ transform:translate(4px,4px); box-shadow:none; }
+
+  .lobby-card{
+    background:var(--panel); border:4px solid var(--ink); border-radius:18px; padding:20px 16px;
+    box-shadow:6px 6px 0 var(--shadow-a);
+  }
+  .lobby-input{
+    width:100%; background:var(--cream); border:3px solid var(--ink); border-radius:10px; padding:12px;
+    font-family:'Nunito',sans-serif; font-weight:800; font-size:14px; margin-bottom:14px;
+  }
+  .lobby-label{ font-weight:800; font-size:11px; letter-spacing:0.5px; color:#C9D3FF; margin-bottom:8px; }
+  .avatar-pick{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:16px; }
+  .avatar-pick .a{
+    background:#fff; border:3px solid var(--ink); border-radius:12px; text-align:center; padding:9px 2px;
+    font-size:22px; cursor:pointer; box-shadow:3px 3px 0 var(--shadow-b);
+  }
+  .avatar-pick .a.selected{ background:var(--yellow); }
+  .play-btn, .rematch-btn{
+    width:100%; border:3px solid var(--ink); border-radius:12px; font-family:'Fredoka',sans-serif;
+    font-weight:600; box-shadow:4px 4px 0 var(--shadow-b); cursor:pointer; background:var(--green);
+  }
+  .play-btn{ padding:13px; font-size:17px; }
+  .play-btn:disabled, .rematch-btn:disabled{ opacity:0.5; cursor:default; }
+  .play-btn:active,.rematch-btn:active{ transform:translate(4px,4px); box-shadow:none; }
+  .no-ip-note{ text-align:center; font-size:11px; color:#AEB9E8; font-weight:700; margin-top:12px; }
+
+  .welcome{
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:28px; color:var(--cream);
+    -webkit-text-stroke:2px var(--ink); paint-order:stroke fill; text-align:center; margin:0 0 4px;
+  }
+  .online-head{ display:flex; justify-content:space-between; align-items:center; margin:14px 0 8px; }
+  .online-count{ background:var(--green); border:2px solid var(--ink); border-radius:8px; padding:2px 8px; font-size:11px; font-weight:900; }
+  .online-list{ list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .online-list li{
+    display:flex; align-items:center; gap:10px; background:var(--cream); border:3px solid var(--ink);
+    border-radius:10px; padding:7px 10px; font-weight:800; font-size:14px;
+  }
+  .online-list .st{ margin-left:auto; font-size:10px; color:#6b6f8a; }
+  .dice-box{
+    background:var(--yellow); border:3px solid var(--ink); border-radius:12px; padding:10px; text-align:center;
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:14px; box-shadow:3px 3px 0 var(--shadow-b);
+  }
+
+  .overlay{ position:fixed; inset:0; background:rgba(19,21,42,0.72); display:flex; align-items:center; justify-content:center; z-index:20; padding:20px; }
+  .modal{
+    width:100%; max-width:340px; background:var(--panel); border:4px solid var(--ink); border-radius:18px;
+    padding:20px 18px; text-align:center; box-shadow:6px 6px 0 var(--shadow-a);
+  }
+  .result-banner{
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:32px; color:var(--cream);
+    -webkit-text-stroke:2px var(--ink); paint-order:stroke fill; margin:0 0 4px;
+  }
+  .result-banner.win{ color:var(--green); }
+  .result-banner.lose{ color:var(--red); }
+  .modal .sub{ color:#C9D3FF; font-size:12px; font-weight:800; margin-bottom:14px; }
+  .final-scores{ display:flex; justify-content:center; gap:18px; margin-bottom:16px; }
+  .final-scores .fs .n{ font-weight:900; font-size:28px; color:var(--yellow); }
+  .final-scores .fs .l{ font-size:11px; font-weight:800; color:var(--cream); }
+  .final-scores .divider{ color:#6b7bb0; font-weight:900; font-size:20px; align-self:center; }
+  .rematch-btn{ padding:12px; font-size:16px; color:var(--ink); margin-bottom:8px; }
+  .modal .note{ font-size:11px; color:#AEB9E8; font-weight:700; }
+  .secondary-btn{
+    width:100%; border:3px solid var(--ink); border-radius:12px; font-family:'Fredoka',sans-serif;
+    font-weight:600; font-size:15px; padding:11px; cursor:pointer; box-shadow:4px 4px 0 var(--shadow-b);
+    background:var(--panel-light); color:var(--cream);
+  }
+  .secondary-btn:active{ transform:translate(4px,4px); box-shadow:none; }
+  .exit-btn{ background:var(--red); color:var(--cream); }
+  .wait-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .wait-actions .play-btn{ padding:11px; font-size:15px; }
+  .online-list .st.ready{ color:#2FAE5C; }
+  .online-list .st.ingame{ color:#3E6FDB; }
+
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:30;
+    background:var(--ink); color:var(--cream); border-radius:12px; padding:10px 16px;
+    font-weight:800; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.3);
+  }
+
+  .hidden{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="doodles"></div>
+<div class="phone">
+
+  <!-- ============ LOBBY: enter nickname ============ -->
+  <section id="screen-lobby">
+    <div class="topbar"><div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connecting…</span></div></div>
+    <div class="title-wrap">
+      <h1 class="title">Remember!</h1>
+      <div class="subtitle-pill">Watch it. Repeat it. Win it.</div>
+    </div>
+    <div class="lobby-card">
+      <div class="lobby-label">YOUR NICKNAME</div>
+      <input class="lobby-input" id="nameInput" placeholder="Enter your nickname" maxlength="12">
+      <div class="lobby-label">PICK YOUR AVATAR</div>
+      <div class="avatar-pick" id="avatarPick">
+        <div class="a selected">🐷</div><div class="a">🐶</div><div class="a">🐦‍⬛</div><div class="a">🐔</div><div class="a">🐮</div>
+      </div>
+      <button class="play-btn" id="playBtn" onclick="join()" disabled>Play!</button>
+      <div class="no-ip-note">Connects to the game server automatically — no IP or port needed.</div>
+    </div>
+  </section>
+
+  <!-- ============ WAITING ROOM: welcome + online players ============ -->
+  <section id="screen-wait" class="hidden">
+    <div class="topbar"><div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connected to server</span></div></div>
+    <div class="lobby-card">
+      <h2 class="welcome" id="welcomeText">Welcome!</h2>
+      <div class="online-head">
+        <div class="lobby-label" style="margin:0;">PLAYERS ONLINE</div>
+        <div class="online-count" id="onlineCount">0 online</div>
+      </div>
+      <ul class="online-list" id="onlineList"></ul>
+      <div class="dice-box" id="diceBox">⏳ Waiting for another player to join…</div>
+      <div class="wait-actions">
+        <button class="play-btn" id="readyBtn" onclick="toggleReady()">Take a break</button>
+        <button class="secondary-btn exit-btn" onclick="quitGame()">Exit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="screen-game" class="hidden">
+    <div class="topbar"><div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connected</span></div></div>
+
+    <div class="title-wrap" style="margin:2px 0 10px;">
+      <div class="subtitle-pill" id="roundPill">ROUND 1</div>
+    </div>
+
+    <div class="score-row">
+      <div class="player-card p1" id="card-p1">
+        <div class="role-tag" id="tag-p1"></div>
+        <div class="avatar" id="av-p1"></div>
+        <div class="pname" id="name-p1"></div>
+        <div class="you">YOU</div>
+        <div class="pscore" id="score-p1">0</div>
+      </div>
+      <div class="vs">VS</div>
+      <div class="player-card p2" id="card-p2">
+        <div class="role-tag" id="tag-p2"></div>
+        <div class="avatar" id="av-p2"></div>
+        <div class="pname" id="name-p2"></div>
+        <div class="you">&nbsp;</div>
+        <div class="pscore" id="score-p2">0</div>
+      </div>
+    </div>
+
+    <div class="turn-banner" id="turnBanner"></div>
+
+    <div class="stage">
+      <div class="stage-label"><span id="stageLabel"></span><span id="stageCount"></span></div>
+      <div class="slots" id="slots"></div>
+    </div>
+
+    <div class="timer-row">
+      <div class="timer-track"><div class="timer-fill" id="timerFill"></div></div>
+      <div class="timer-num" id="timerNum">–</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="emoji-btn pig"     onclick="press('🐷')"><span class="glyph">🐷</span><span class="label">PIG</span></button>
+      <button class="emoji-btn dog"     onclick="press('🐶')"><span class="glyph">🐶</span><span class="label">DOG</span></button>
+      <button class="emoji-btn crow"    onclick="press('🐦‍⬛')"><span class="glyph">🐦‍⬛</span><span class="label">CROW</span></button>
+      <button class="emoji-btn chicken" onclick="press('🐔')"><span class="glyph">🐔</span><span class="label">CHICKEN</span></button>
+      <button class="emoji-btn cow"     onclick="press('🐮')"><span class="glyph">🐮</span><span class="label">COW</span></button>
+    </div>
+    <button class="done-btn hidden" id="doneBtn" onclick="socket.emit('done')">Done ✓</button>
+    <div class="btn-hint" id="btnHint"></div>
+  </section>
+</div>
+
+<!-- ============ END OF MATCH ============ -->
+<div class="overlay hidden" id="endModal">
+  <div class="modal">
+    <div class="result-banner" id="resultText"></div>
+    <div class="sub">Match ended · 2 rounds</div>
+    <div class="final-scores">
+      <div class="fs"><div class="n" id="finalP1">0</div><div class="l" id="finalL1"></div></div>
+      <div class="divider">–</div>
+      <div class="fs"><div class="n" id="finalP2">0</div><div class="l" id="finalL2"></div></div>
+    </div>
+    <button class="rematch-btn" id="rematchBtn" onclick="socket.emit('rematch')">Rematch</button>
+    <button class="secondary-btn" onclick="socket.emit('leave_match')">Back to Lobby</button>
+    <div class="note" id="rematchNote" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+  const SERVER_URL = "http://10.81.68.88:3000";
+  document.write('<script src="' + SERVER_URL + '/socket.io/socket.io.js"><\/script>');
+</script>
+
+<script>
+const CREATE_SECONDS = 10, REPEAT_SECONDS = 20, MAX_STEPS = 10;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+let myId = null, myAvatar = "🐷", joinedName = null;
+let state = null, online = [], matches = [];
+let timerId = null, timerKey = "";
+
+/* ---------- 1. Connect to the server ---------- */
+const socket = io(SERVER_URL);
+
+socket.on("connect", () => {
+  setConn(true);
+  if (joinedName) socket.emit("join", { name: joinedName, avatar: myAvatar }); // re-join after reconnecting
+});
+socket.on("disconnect", () => setConn(false));
+socket.on("connect_error", () => setConn(false));
+
+function setConn(ok){
+  document.querySelectorAll(".conn-dot").forEach((d) => d.style.background = ok ? "var(--green)" : "var(--red)");
+  document.querySelectorAll(".conn-text").forEach((t) => t.textContent = ok ? "Connected to server" : "Can't reach server…");
+  $("playBtn").disabled = !ok;
+}
+
+/* ---------- 2. Enter nickname ---------- */
+$("avatarPick").addEventListener("click", (ev) => {
+  const a = ev.target.closest(".a"); if (!a) return;
+  document.querySelectorAll("#avatarPick .a").forEach((x) => x.classList.remove("selected"));
+  a.classList.add("selected");
+  myAvatar = a.textContent;
+});
+$("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+
+function join(){
+  const name = $("nameInput").value.trim();
+  if (!name){ $("nameInput").focus(); return; }
+  joinedName = name;
+  socket.emit("join", { name, avatar: myAvatar });
+}
+
+/* ---------- 3. Receive data from the server ---------- */
+socket.on("welcome", (d) => {
+  myId = d.id;
+  $("welcomeText").textContent = `Welcome, ${d.name}.`;
+  show("wait");
+  renderState();
+});
+socket.on("online", (list) => { online = list; renderOnline(); });
+socket.on("state", (s) => { state = s; renderState(); });
+socket.on("matches", (list) => { matches = list; renderState(); });
+socket.on("notice", (msg) => toast(msg));
+
+/* ---------- 4. Button presses ---------- */
+function press(emoji){ socket.emit("press", emoji); }
+
+/* ---------- Rendering ---------- */
+function show(name){
+  ["lobby", "wait", "game"].forEach((s) => $("screen-" + s).classList.toggle("hidden", s !== name));
+}
+
+function renderOnline(){
+  $("onlineCount").textContent = `${online.length} online`;
+  $("onlineList").innerHTML = online.map((p) =>
+    `<li>${p.avatar} ${esc(p.name)}${p.id === myId ? " (you)" : ""}<span class="st ${p.status === "ready" ? "ready" : p.inGame ? "ingame" : ""}">${statusText(p)}</span></li>`
+  ).join("");
+  renderState();
+}
+
+function statusText(p){
+  if (p.status === "in game") return "in game";
+  if (p.status === "ready") return p.queuePos ? `ready · #${p.queuePos} in line` : "ready";
+  return "taking a break";
+}
+
+/* ---------- Waiting room actions ---------- */
+function meOnline(){ return online.find((p) => p.id === myId); }
+
+function toggleReady(){
+  const me = meOnline();
+  if (me) socket.emit("set_ready", me.status !== "ready");
+}
+
+// Exit: leave the game and go back to the nickname screen
+function quitGame(){
+  socket.emit("quit");
+  joinedName = null; myId = null; state = null;
+  $("endModal").classList.add("hidden");
+  stopTimer();
+  show("lobby");
+}
+
+function setButtons(on){ document.querySelectorAll(".emoji-btn").forEach((b) => b.disabled = !on); }
+
+function setTag(id, text, on){
+  const t = $(id);
+  t.classList.toggle("hidden", !text);
+  t.textContent = text;
+  t.style.background = on ? "var(--green)" : "var(--panel-light)";
+  t.style.color = on ? "var(--ink)" : "#cfd8ff";
+}
+
+function roleOf(id, s){
+  if (s.phase === "create") return id === s.creator ? ["CREATING", true] : ["WATCHING", false];
+  if (s.phase === "repeat") return id === s.repeater ? ["REPEATING", true] : ["WAITING", false];
+  return ["", false];
+}
+
+function slotsFilled(items){ return items.map((e) => `<div class="slot filled">${e}</div>`).join(""); }
+
+// mode: "mine" = I am answering (remaining steps hidden as ?), "watch" = watching the opponent answer, "final" = reveal the answer
+function slotsAnswer(pattern, answer, mode){
+  let html = answer.map((e, i) => `<div class="slot ${e === pattern[i] ? "correct" : "wrong"}">${e}</div>`).join("");
+  for (let i = answer.length; i < pattern.length; i++){
+    if (mode === "final") html += `<div class="slot missed">${pattern[i]}</div>`;
+    else if (i === answer.length) html += `<div class="slot current"></div>`;
+    else html += mode === "mine" ? `<div class="slot hidden-step">?</div>` : `<div class="slot"></div>`;
+  }
+  return html;
+}
+
+function renderState(){
+  if (!myId || !state) return;
+  const s = state;
+  const inMatch = s.phase !== "idle" && s.players.some((p) => p.id === myId);
+
+  // No opponent yet, or another match is in progress
+  if (!inMatch){
+    show("wait");
+    $("endModal").classList.add("hidden");
+    stopTimer();
+    const me = meOnline();
+    const ready = me && me.status === "ready";
+    const others = online.filter((p) => p.id !== myId && p.status === "ready").length;
+    const running = matches.length
+      ? `<br><small>🎮 ${matches.length} match${matches.length > 1 ? "es" : ""} in progress: ${matches.map((m) => m.players.map(esc).join(" vs ")).join(", ")}</small>`
+      : "";
+    let msg;
+    if (!ready) msg = "☕ You're taking a break. Press <b>Ready</b> when you want to play.";
+    else if (others === 0) msg = "⏳ Waiting for another player to be ready…";
+    else msg = "🎲 Finding an opponent…";
+    msg += running;
+    $("diceBox").innerHTML = msg;
+    $("readyBtn").textContent = ready ? "Take a break" : "Ready to play";
+    return;
+  }
+
+  show("game");
+  const me = s.players.find((p) => p.id === myId);
+  const op = s.players.find((p) => p.id !== myId);
+  const creator = s.players.find((p) => p.id === s.creator);
+  const repeater = s.players.find((p) => p.id === s.repeater);
+  const iCreate = s.creator === myId, iRepeat = s.repeater === myId;
+
+  // Player cards
+  $("av-p1").textContent = me.avatar;  $("name-p1").textContent = me.name;  $("score-p1").textContent = s.scores[myId] ?? 0;
+  $("av-p2").textContent = op.avatar;  $("name-p2").textContent = op.name;  $("score-p2").textContent = s.scores[op.id] ?? 0;
+  const [t1, on1] = roleOf(myId, s), [t2, on2] = roleOf(op.id, s);
+  setTag("tag-p1", t1, on1); setTag("tag-p2", t2, on2);
+  $("card-p1").classList.toggle("active", on1);
+  $("card-p2").classList.toggle("active", on2);
+
+  const phaseName = { create: "CREATE", repeat: "REPEAT", review: "RESULT" }[s.phase];
+  $("roundPill").textContent = `MATCH #${s.id} · ` + (s.phase === "ended" ? "COMPLETE" : `ROUND ${s.round} / 2 · ${phaseName}`);
+
+  setButtons(false);
+  $("doneBtn").classList.add("hidden");
+  $("btnHint").textContent = "";
+  const firstTurn = s.round === 1 && s.creator === s.firstPlayer;
+  const dice = (who) => firstTurn ? `🎲 Server picked <b>${who}</b> to go first! ` : "";
+
+  if (s.phase === "create"){
+    $("stageCount").textContent = `${s.pattern.length} / ${MAX_STEPS}`;
+    if (iCreate){
+      $("turnBanner").innerHTML = dice("you") + "<b>Your turn</b> — tap buttons to make a pattern";
+      $("stageLabel").textContent = "YOUR PATTERN (OPPONENT CAN SEE IT)";
+      $("slots").innerHTML = slotsFilled(s.pattern) + (s.pattern.length < MAX_STEPS ? `<div class="slot current"></div>` : "");
+      setButtons(s.pattern.length < MAX_STEPS);
+      $("doneBtn").classList.toggle("hidden", s.pattern.length === 0);
+      $("btnHint").textContent = "Tap to add steps (max 10). Press Done when finished.";
+    } else {
+      $("turnBanner").innerHTML = dice(esc(creator.name)) + `<b>${esc(creator.name)}</b> is creating — watch &amp; memorize!`;
+      $("stageLabel").textContent = `${creator.name.toUpperCase()}'S PATTERN`;
+      $("slots").innerHTML = s.pattern.length ? slotsFilled(s.pattern) : `<span class="empty-msg">Waiting for the first step…</span>`;
+      $("btnHint").textContent = "Memorize the order!";
+    }
+  }
+
+  if (s.phase === "repeat"){
+    if (iRepeat){
+      $("turnBanner").innerHTML = "<b>Your turn</b> — repeat the pattern in order";
+      $("stageLabel").textContent = "YOUR PROGRESS";
+      $("stageCount").textContent = `${s.answer.length} / ${s.pattern.length}`;
+      $("slots").innerHTML = slotsAnswer(s.pattern, s.answer, "mine");
+      setButtons(true);
+    } else {
+      const ok = s.answer.filter((e, i) => e === s.pattern[i]).length;
+      $("turnBanner").innerHTML = `<b>${esc(repeater.name)}</b> is repeating your pattern`;
+      $("stageLabel").textContent = `${repeater.name.toUpperCase()}'S ANSWER`;
+      $("stageCount").textContent = `${ok} correct`;
+      $("slots").innerHTML = slotsAnswer(s.pattern, s.answer, "watch");
+      $("btnHint").textContent = "Wait for your opponent to finish";
+    }
+  }
+
+  if (s.phase === "review"){
+    const ok = s.answer.filter((e, i) => e === s.pattern[i]).length;
+    const who = iRepeat ? "You" : esc(repeater.name);
+    $("turnBanner").innerHTML = `${who} got <b>${ok}</b> correct step${ok === 1 ? "" : "s"}!` + (s.round === 1 ? " Swapping roles…" : "");
+    $("stageLabel").textContent = "RESULT";
+    $("stageCount").textContent = `${ok} / ${s.pattern.length}`;
+    $("slots").innerHTML = s.pattern.length ? slotsAnswer(s.pattern, s.answer, "final") : `<span class="empty-msg">No pattern this round</span>`;
+  }
+
+  syncTimer(s);
+  renderEnd(s, me, op);
+}
+
+function renderEnd(s, me, op){
+  if (s.phase !== "ended"){ $("endModal").classList.add("hidden"); return; }
+  const rt = $("resultText");
+  if (s.winner === myId){ rt.textContent = "You Win!"; rt.className = "result-banner win"; }
+  else if (s.winner === null){ rt.textContent = "Draw"; rt.className = "result-banner"; }
+  else { rt.textContent = "You Lost"; rt.className = "result-banner lose"; }
+
+  $("finalP1").textContent = s.scores[myId];  $("finalL1").textContent = `${me.avatar} ${me.name.toUpperCase()}`;
+  $("finalP2").textContent = s.scores[op.id]; $("finalL2").textContent = `${op.avatar} ${op.name.toUpperCase()}`;
+
+  const iVoted = s.rematch.includes(myId), opVoted = s.rematch.includes(op.id);
+  $("rematchBtn").disabled = iVoted;
+  $("rematchNote").textContent = iVoted ? `Waiting for ${op.name} to accept…`
+    : opVoted ? `${op.name} wants a rematch!`
+    : "Rematch: both players must accept, winner goes first. Back to Lobby lets other players play.";
+  $("endModal").classList.remove("hidden");
+}
+
+/* ---------- Countdown timer ---------- */
+function syncTimer(s){
+  if (s.phase !== "create" && s.phase !== "repeat"){
+    stopTimer();
+    $("timerNum").textContent = "–";
+    $("timerFill").style.width = "0%";
+    return;
+  }
+  const key = `${s.id}-${s.deadline}`; // new deadline = new phase
+  if (key === timerKey) return; // same phase, don't restart the countdown
+  timerKey = key;
+  startTimer(s.phase === "create" ? CREATE_SECONDS : REPEAT_SECONDS, s.secondsLeft);
+}
+
+function startTimer(total, left){
+  clearInterval(timerId);
+  // Reset the timer bar without animation, then turn animation back on
+  const fill = $("timerFill");
+  fill.style.transition = "none";
+  fill.style.width = (left / total) * 100 + "%";
+  void fill.offsetWidth;
+  fill.style.transition = "";
+  const paint = () => {
+    $("timerNum").textContent = left + "s";
+    const pct = (left / total) * 100;
+    $("timerFill").style.width = pct + "%";
+    $("timerFill").style.background = pct > 50 ? "var(--green)" : pct > 25 ? "var(--yellow)" : "var(--red)";
+  };
+  paint();
+  timerId = setInterval(() => { if (left > 0){ left--; paint(); } else clearInterval(timerId); }, 1000);
+}
+function stopTimer(){ clearInterval(timerId); timerKey = ""; }
+
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.add("hidden"), 3000);
+}
+</script>
+</body>
+</html>
