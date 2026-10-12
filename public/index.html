@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Remember! — Dup Me</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&family=Mitr:wght@500&display=swap" rel="stylesheet">
 <style>
   :root{
     --sky:#4E86F5; --panel:#1E2E72; --panel-light:#28418F;
@@ -98,6 +98,53 @@
   .slot.missed{ opacity:0.4; }
   .slot.current{ border-color:var(--ink); border-style:solid; background:#fff; }
   .slot.hidden-step{ color:#B9C1E0; font-family:'Fredoka',sans-serif; font-weight:700; font-size:18px; }
+  /* Blind step: the guesser only sees a solid box, not the animal */
+  .slot.solid{
+    border-style:solid; border-color:var(--ink); background:var(--panel);
+    box-shadow:2px 2px 0 var(--shadow-b), inset 0 0 0 3px var(--panel-light);
+  }
+  .slot.pop{ animation:slotPop .32s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes slotPop{ 0%{ transform:scale(.3); } 100%{ transform:scale(1); } }
+
+  /* Live press: the button flashes on BOTH screens when anyone presses it */
+  .emoji-btn{ position:relative; }
+  .emoji-btn.flash, .emoji-btn.flash:disabled{
+    opacity:1; animation:btnFlash .42s ease-out;
+    box-shadow:0 0 0 4px var(--yellow), 4px 4px 0 var(--shadow-b);
+  }
+  @keyframes btnFlash{
+    0%{ transform:translate(4px,4px) scale(.92); box-shadow:0 0 0 0 var(--yellow); }
+    35%{ transform:translate(0,0) scale(1.12); box-shadow:0 0 0 7px var(--yellow); }
+    100%{ transform:scale(1); box-shadow:0 0 0 4px var(--yellow), 4px 4px 0 var(--shadow-b); }
+  }
+  .float-emoji{
+    position:absolute; left:50%; top:-6px; font-size:26px; pointer-events:none; z-index:5;
+    animation:floatUp .8s ease-out forwards;
+  }
+  @keyframes floatUp{
+    0%{ transform:translate(-50%,0) scale(.6); opacity:0; }
+    20%{ opacity:1; transform:translate(-50%,-14px) scale(1.15); }
+    100%{ transform:translate(-50%,-52px) scale(1); opacity:0; }
+  }
+  .emoji-btn .label .th{ font-family:'Mitr',sans-serif; font-weight:500; }
+
+  /* Audio controls in the top bar */
+  .topbar{ justify-content:space-between; gap:8px; }
+  .audio-ctrls{ display:flex; gap:6px; }
+  .chip-btn{
+    background:var(--cream); border:2px solid var(--ink); border-radius:10px; padding:4px 9px;
+    font-family:'Nunito','Mitr',sans-serif; font-weight:900; font-size:11px; cursor:pointer;
+    box-shadow:2px 2px 0 var(--shadow-b); color:var(--ink);
+  }
+  .chip-btn:active{ transform:translate(2px,2px); box-shadow:none; }
+  .chip-btn.off{ background:#C9D3FF; color:#4a5280; }
+  .voice-pick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+  .voice-pick button{
+    background:#fff; border:3px solid var(--ink); border-radius:12px; padding:8px 4px; cursor:pointer;
+    font-family:'Nunito','Mitr',sans-serif; font-weight:800; font-size:12px; box-shadow:3px 3px 0 var(--shadow-b); line-height:1.3;
+  }
+  .voice-pick button small{ display:block; font-weight:700; font-size:10px; color:#6b6f8a; }
+  .voice-pick button.selected{ background:var(--yellow); }
 
   .timer-row{ display:flex; align-items:center; gap:10px; margin:12px 0 14px; }
   .timer-track{ flex:1; height:14px; background:var(--ink); border:3px solid var(--ink); border-radius:8px; overflow:hidden; }
@@ -214,9 +261,17 @@
 <div class="doodles"></div>
 <div class="phone">
 
+  <!-- Top bar (all screens): music + button-sound switches, connection status -->
+  <div class="topbar">
+    <div class="audio-ctrls">
+      <button class="chip-btn" id="musicBtn" onclick="toggleMusic()">♪ Music on</button>
+      <button class="chip-btn" id="voiceBtn" onclick="setVoice(voice === 'animal' ? 'thai' : 'animal', true)">🐾 Animal</button>
+    </div>
+    <div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connecting…</span></div>
+  </div>
+
   <!-- ============ LOBBY: enter nickname ============ -->
   <section id="screen-lobby">
-    <div class="topbar"><div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connecting…</span></div></div>
     <div class="title-wrap">
       <h1 class="title">Remember!</h1>
       <div class="subtitle-pill">Watch it. Repeat it. Win it.</div>
@@ -228,6 +283,11 @@
       <div class="avatar-pick" id="avatarPick">
         <div class="a selected">🐷</div><div class="a">🐶</div><div class="a">🐦‍⬛</div><div class="a">🐔</div><div class="a">🐮</div>
       </div>
+      <div class="lobby-label">BUTTON SOUND (WHAT YOU HEAR)</div>
+      <div class="voice-pick" id="voicePick">
+        <button data-voice="animal" onclick="setVoice('animal', true)">🐾 Real animal<small>oink · woof · caw…</small></button>
+        <button data-voice="thai" onclick="setVoice('thai', true)">🗣️ ไทย<small>หมู หมา กา ไก่ วัว</small></button>
+      </div>
       <button class="play-btn" id="playBtn" onclick="join()" disabled>Play!</button>
       <div class="no-ip-note">Connects to the game server automatically — no IP or port needed.</div>
     </div>
@@ -235,7 +295,6 @@
 
   <!-- ============ WAITING ROOM: welcome + online players ============ -->
   <section id="screen-wait" class="hidden">
-    <div class="topbar"><div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connected to server</span></div></div>
     <div class="lobby-card">
       <h2 class="welcome" id="welcomeText">Welcome!</h2>
       <div class="online-head">
@@ -253,7 +312,6 @@
 
   <!-- ============ GAME ============ -->
   <section id="screen-game" class="hidden">
-    <div class="topbar"><div class="conn-chip"><span class="conn-dot"></span><span class="conn-text">Connected</span></div></div>
 
     <div class="title-wrap" style="margin:2px 0 10px;">
       <div class="subtitle-pill" id="roundPill">ROUND 1</div>
@@ -290,11 +348,11 @@
     </div>
 
     <div class="btn-row">
-      <button class="emoji-btn pig"     onclick="press('🐷')"><span class="glyph">🐷</span><span class="label">PIG</span></button>
-      <button class="emoji-btn dog"     onclick="press('🐶')"><span class="glyph">🐶</span><span class="label">DOG</span></button>
-      <button class="emoji-btn crow"    onclick="press('🐦‍⬛')"><span class="glyph">🐦‍⬛</span><span class="label">CROW</span></button>
-      <button class="emoji-btn chicken" onclick="press('🐔')"><span class="glyph">🐔</span><span class="label">CHICKEN</span></button>
-      <button class="emoji-btn cow"     onclick="press('🐮')"><span class="glyph">🐮</span><span class="label">COW</span></button>
+      <button class="emoji-btn pig"     data-key="pig"     onclick="press('🐷')"><span class="glyph">🐷</span><span class="label">PIG</span></button>
+      <button class="emoji-btn dog"     data-key="dog"     onclick="press('🐶')"><span class="glyph">🐶</span><span class="label">DOG</span></button>
+      <button class="emoji-btn crow"    data-key="crow"    onclick="press('🐦‍⬛')"><span class="glyph">🐦‍⬛</span><span class="label">CROW</span></button>
+      <button class="emoji-btn chicken" data-key="chicken" onclick="press('🐔')"><span class="glyph">🐔</span><span class="label">CHICKEN</span></button>
+      <button class="emoji-btn cow"     data-key="cow"     onclick="press('🐮')"><span class="glyph">🐮</span><span class="label">COW</span></button>
     </div>
     <button class="done-btn hidden" id="doneBtn" onclick="socket.emit('done')">Done ✓</button>
     <div class="btn-hint" id="btnHint"></div>
@@ -320,7 +378,24 @@
 <div class="toast hidden" id="toast"></div>
 
 <script>
-  const SERVER_URL = "http://10.81.68.88:3000";
+  // Which game server to connect to:
+  //  1) ?server=http://IP:3000 in the address bar, if given
+  //  2) otherwise the server this page was opened from (http://<server-ip>:3000/)
+  //  3) only when index.html is opened as a local file (double-clicked):
+  //     this same computer (127.0.0.1:3000) if the server is running here, else the fallback address below
+  const FALLBACK_SERVER = "http://10.81.68.88:3000";
+  function serverOnThisComputer(){
+    // Quick check: "connection refused" comes back instantly when no server runs here, so this never hangs
+    try {
+      const x = new XMLHttpRequest();
+      x.open("GET", "http://127.0.0.1:3000/sounds/README.txt", false);
+      x.send();
+      return x.status === 200;
+    } catch { return false; }
+  }
+  const SERVER_URL = (new URLSearchParams(location.search).get("server")
+    || (location.protocol.startsWith("http") ? location.origin
+        : serverOnThisComputer() ? "http://127.0.0.1:3000" : FALLBACK_SERVER)).replace(/\/$/, "");
   document.write('<script src="' + SERVER_URL + '/socket.io/socket.io.js"><\/script>');
 </script>
 
@@ -334,12 +409,225 @@ let state = null, online = [], matches = [];
 let timerId = null, timerKey = "";
 
 /* ---------- 1. Connect to the server ---------- */
+if (typeof io === "undefined"){
+  // socket.io.js could not be loaded: the server address is wrong or the server is off
+  document.querySelector(".conn-text").textContent = "Can't reach " + SERVER_URL;
+  document.querySelector(".no-ip-note").innerHTML =
+    `Couldn't load the game from <b>${SERVER_URL}</b>.<br>Open this page from the server instead: <b>http://&lt;server-ip&gt;:3000/</b>`;
+  throw new Error("socket.io not loaded from " + SERVER_URL);
+}
 const socket = io(SERVER_URL);
 
 socket.on("connect", () => {
   setConn(true);
   if (joinedName) socket.emit("join", { name: joinedName, avatar: myAvatar }); // re-join after reconnecting
+  clockSync(6); // a few quick samples right away
 });
+
+/* ---------- Clock sync (so both players hear a press at the same moment) ----------
+   The server sends "play at server time T". We estimate (server clock − my clock)
+   from a few ping samples and keep the one with the smallest round trip (most accurate). */
+let clockOffset = 0, clockSamples = [];
+function clockSync(n = 1){
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    const t0 = Date.now();
+    socket.emit("clock", (serverT) => {
+      const t1 = Date.now(), rtt = t1 - t0;
+      clockSamples.push({ rtt, offset: serverT - (t0 + t1) / 2 });
+      if (clockSamples.length > 10) clockSamples.shift();
+      const best = clockSamples.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+      clockOffset = best.offset;
+      const rtts = clockSamples.map((s) => s.rtt).sort((a, b) => a - b);
+      socket.emit("rtt", rtts[Math.floor(rtts.length / 2)]); // median, so the server can pick a safe delay
+    });
+  }, i * 150);
+}
+setInterval(() => socket.connected && clockSync(1), 4000);
+const serverToLocal = (t) => t - clockOffset;
+
+/* ---------- Audio: button sounds + background music (Web Audio) ---------- */
+const ANIMALS = { "🐷": "pig", "🐶": "dog", "🐦‍⬛": "crow", "🐔": "chicken", "🐮": "cow" };
+const THAI = { pig: "หมู", dog: "หมา", crow: "กา", chicken: "ไก่", cow: "วัว" };
+const LABEL = { pig: "PIG", dog: "DOG", crow: "CROW", chicken: "CHICKEN", cow: "COW" };
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const actx = new AudioCtx();
+const master = actx.createGain(); master.connect(actx.destination);
+const sfxBus = actx.createGain(); sfxBus.gain.value = 1; sfxBus.connect(master);
+const musicBus = actx.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+const buffers = {}; // "animal/pig" -> AudioBuffer
+const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+                set(k, v){ try { localStorage.setItem(k, v); } catch {} } };
+let voice = store.get("dupme.voice") === "thai" ? "thai" : "animal";
+let musicOn = store.get("dupme.music") !== "off";
+
+// Load the sound files (served by the game server: public/sounds/<voice>/<animal>.mp3)
+for (const v of ["animal", "thai"]) for (const a of Object.values(ANIMALS)) {
+  fetch(`${SERVER_URL}/sounds/${v}/${a}.mp3`)
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then((ab) => new Promise((ok, bad) => actx.decodeAudioData(ab, ok, bad)))
+    .then((buf) => { buffers[`${v}/${a}`] = buf; })
+    .catch(() => {}); // missing file -> a simple synth beep is used instead
+}
+
+// Browsers only allow sound after the player touches the page
+function unlockAudio(){ if (actx.state !== "running") actx.resume(); if (musicOn) startMusic(); }
+["pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
+
+// Play one animal sound at audio time `when`. Only one press sound at a time:
+// a new press quickly fades out the previous one (same on both screens).
+let lastSfx = null;
+function playAnimal(animal, v, when = actx.currentTime){
+  if (lastSfx){
+    try {
+      lastSfx.gain.gain.setValueAtTime(lastSfx.gain.gain.value, when);
+      lastSfx.gain.gain.linearRampToValueAtTime(0, when + 0.06);
+      lastSfx.src.stop(when + 0.07);
+    } catch {}
+  }
+  const g = actx.createGain(); g.connect(sfxBus);
+  let src;
+  const buf = buffers[`${v}/${animal}`];
+  if (buf){
+    src = actx.createBufferSource(); src.buffer = buf; src.connect(g);
+    src.start(when);
+  } else {
+    // Fallback beep (different pitch per animal) if a sound file is missing
+    const f = { pig: 220, dog: 330, crow: 440, chicken: 550, cow: 165 }[animal] || 300;
+    src = actx.createOscillator(); src.type = "square";
+    src.frequency.setValueAtTime(f, when); src.frequency.exponentialRampToValueAtTime(f * 1.5, when + 0.2);
+    g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.25, when + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.3);
+    src.connect(g); src.start(when); src.stop(when + 0.32);
+  }
+  lastSfx = { src, gain: g };
+  duckMusic(when, buf ? buf.duration : 0.3);
+}
+
+// Lower the music while an animal sound plays, so the sound is easy to hear
+function duckMusic(when, dur){
+  if (!musicOn) return;
+  const p = musicBus.gain;
+  p.cancelScheduledValues(when);
+  p.setValueAtTime(p.value, when);
+  p.linearRampToValueAtTime(MUSIC_VOL * 0.35, when + 0.05);
+  p.setValueAtTime(MUSIC_VOL * 0.35, when + dur);
+  p.linearRampToValueAtTime(MUSIC_VOL, when + dur + 0.4);
+}
+
+// A press arrived from the server: animate + play at the shared moment
+socket.on("pressed", ({ emoji, at }) => {
+  const animal = ANIMALS[emoji]; if (!animal) return;
+  let delay = serverToLocal(at) - Date.now();      // ms until the shared moment
+  if (delay < -1500) return;                        // way too late (tab was asleep) — skip
+  delay = Math.max(0, delay);
+  // Each player hears THEIR OWN chosen sound type, no matter who pressed
+  if (actx.state === "running") playAnimal(animal, voice, actx.currentTime + delay / 1000);
+  setTimeout(() => flashButton(animal), delay);
+});
+
+function flashButton(animal){
+  const b = document.querySelector(`.emoji-btn[data-key="${animal}"]`); if (!b) return;
+  b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
+  clearTimeout(b._f); b._f = setTimeout(() => b.classList.remove("flash"), 450);
+  const f = document.createElement("span");
+  f.className = "float-emoji"; f.textContent = b.querySelector(".glyph").textContent;
+  b.appendChild(f); setTimeout(() => f.remove(), 800);
+}
+
+/* Background music: the ABC song melody, played by a small Web Audio sequencer. */
+const MUSIC_VOL = 0.16, BPM = 104;
+const N = { C3:130.81, D3:146.83, E3:164.81, F3:174.61, G3:196.00, A3:220.00, B3:246.94,
+            C4:261.63, D4:293.66, E4:329.63, F4:349.23, G4:392.00, A4:440.00,
+            C5:523.25, D5:587.33, E5:659.25, F5:698.46, G5:783.99, A5:880.00 };
+// [note, beats]  — A B C D E F G / H I J K LMNO P / Q R S, T U V / W, X, Y and Z / Now I know my ABCs / next time won't you sing with me
+const MELODY = [
+  ["C5",1],["C5",1],["G5",1],["G5",1],["A5",1],["A5",1],["G5",2],
+  ["F5",1],["F5",1],["E5",1],["E5",1],["D5",.5],["D5",.5],["D5",.5],["D5",.5],["C5",2],
+  ["G5",1],["G5",1],["F5",2],["E5",1],["E5",1],["D5",2],
+  ["G5",.5],["G5",.5],["G5",1],["F5",2],["E5",1],["E5",1],["D5",2],
+  ["C5",1],["C5",1],["G5",1],["G5",1],["A5",1],["A5",1],["G5",2],
+  ["F5",1],["F5",1],["E5",1],["E5",1],["D5",1],["D5",1],["C5",2],
+  [null,2],
+];
+// One bass chord root per 2 beats (oom-pah: root then fifth)
+const BASS = ["C3","C3","F3","C3", "F3","C3","G3","C3", "C3","F3","C3","G3",
+              "C3","F3","C3","G3", "C3","C3","F3","C3", "F3","C3","G3","C3", null];
+const FIFTH = { C3:"G3", F3:"C4", G3:"D4" };
+let musicTimer = null, musicStep = 0, musicNextT = 0, musicBeat = 0;
+
+function tone(freq, t, dur, type, vol){
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + dur + 0.02);
+}
+function scheduleMusic(){
+  const spb = 60 / BPM;
+  while (musicNextT < actx.currentTime + 0.35){
+    const [note, beats] = MELODY[musicStep];
+    if (note){
+      tone(N[note], musicNextT, beats * spb * 0.95, "triangle", 0.5);   // melody (music-box feel)
+      tone(N[note] * 2, musicNextT, 0.25, "sine", 0.08);                 // little sparkle on top
+    }
+    // bass on every whole beat that this note covers
+    for (let b = Math.ceil(musicBeat - 1e-6); b < musicBeat + beats - 1e-6; b++){
+      const root = BASS[Math.floor(b / 2)];
+      if (root){
+        const t = musicNextT + (b - musicBeat) * spb;
+        tone(N[b % 2 === 0 ? root : FIFTH[root]], t, spb * 0.8, "sine", 0.45);
+      }
+    }
+    musicNextT += beats * spb; musicBeat += beats;
+    if (++musicStep >= MELODY.length){ musicStep = 0; musicBeat = 0; }
+  }
+}
+function startMusic(){
+  if (musicTimer || actx.state !== "running") return;
+  musicStep = 0; musicBeat = 0; musicNextT = actx.currentTime + 0.1;
+  musicBus.gain.cancelScheduledValues(actx.currentTime);
+  musicBus.gain.setValueAtTime(0, actx.currentTime);
+  musicBus.gain.linearRampToValueAtTime(MUSIC_VOL, actx.currentTime + 1);
+  scheduleMusic();
+  musicTimer = setInterval(scheduleMusic, 80);
+}
+function stopMusic(){
+  clearInterval(musicTimer); musicTimer = null;
+  musicBus.gain.cancelScheduledValues(actx.currentTime);
+  musicBus.gain.setValueAtTime(musicBus.gain.value, actx.currentTime);
+  musicBus.gain.linearRampToValueAtTime(0, actx.currentTime + 0.3);
+}
+function toggleMusic(){
+  musicOn = !musicOn;
+  store.set("dupme.music", musicOn ? "on" : "off");
+  if (musicOn){ if (actx.state !== "running") actx.resume().then(startMusic); else startMusic(); }
+  else stopMusic();
+  renderAudioCtrls();
+}
+
+// Choose the button sound. `preview` plays a sample so the player hears the choice.
+function setVoice(v, preview){
+  voice = v === "thai" ? "thai" : "animal";
+  store.set("dupme.voice", voice);
+  renderAudioCtrls();
+  if (preview){
+    const go = () => playAnimal(ANIMALS[myAvatar] || "pig", voice);
+    actx.state === "running" ? go() : actx.resume().then(go);
+  }
+}
+function renderAudioCtrls(){
+  $("musicBtn").textContent = musicOn ? "♪ Music on" : "♪ Music off";
+  $("musicBtn").classList.toggle("off", !musicOn);
+  $("voiceBtn").textContent = voice === "thai" ? "🗣️ ไทย" : "🐾 Animal";
+  document.querySelectorAll("#voicePick button").forEach((b) => b.classList.toggle("selected", b.dataset.voice === voice));
+  // Button labels: show the Thai name too when the Thai voice is on
+  document.querySelectorAll(".emoji-btn").forEach((b) => {
+    const k = b.dataset.key;
+    b.querySelector(".label").innerHTML = voice === "thai" ? `<span class="th">${THAI[k]}</span>` : LABEL[k];
+  });
+}
+renderAudioCtrls();
 socket.on("disconnect", () => setConn(false));
 socket.on("connect_error", () => setConn(false));
 
@@ -355,6 +643,7 @@ $("avatarPick").addEventListener("click", (ev) => {
   document.querySelectorAll("#avatarPick .a").forEach((x) => x.classList.remove("selected"));
   a.classList.add("selected");
   myAvatar = a.textContent;
+  if (actx.state === "running") playAnimal(ANIMALS[myAvatar], voice); // preview the avatar's sound
 });
 $("nameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
 
@@ -378,6 +667,7 @@ socket.on("matches", (list) => { matches = list; renderState(); });
 socket.on("notice", (msg) => toast(msg));
 
 /* ---------- 4. Button presses ---------- */
+// The sound + animation come back from the server as a "pressed" event, so both players get them together
 function press(emoji){ socket.emit("press", emoji); }
 
 /* ---------- Rendering ---------- */
@@ -432,15 +722,27 @@ function roleOf(id, s){
   return ["", false];
 }
 
-function slotsFilled(items){ return items.map((e) => `<div class="slot filled">${e}</div>`).join(""); }
+// The newest slot gets a small "pop" animation (only when the count grows)
+let popKey = "", popCount = 0;
+function popIndex(key, count){
+  const grew = key === popKey && count > popCount;
+  popKey = key; popCount = count;
+  return grew ? count - 1 : -1;
+}
+function slotsFilled(items, pop = -1){ return items.map((e, i) => `<div class="slot filled${i === pop ? " pop" : ""}">${e}</div>`).join(""); }
+// Blind pattern: solid boxes only, so the guesser knows HOW MANY steps but not WHICH animals
+function slotsSolid(n, pop = -1){ return Array.from({ length: n }, (_, i) => `<div class="slot solid${i === pop ? " pop" : ""}"></div>`).join(""); }
 
-// mode: "mine" = I am answering (remaining steps hidden as ?), "watch" = watching the opponent answer, "final" = reveal the answer
-function slotsAnswer(pattern, answer, mode){
-  let html = answer.map((e, i) => `<div class="slot ${e === pattern[i] ? "correct" : "wrong"}">${e}</div>`).join("");
-  for (let i = answer.length; i < pattern.length; i++){
+// mode: "mine" = I am answering (pattern is hidden: remaining steps are solid boxes),
+//       "watch" = watching the opponent answer, "final" = reveal the answer
+// ok[i] (from the server) says if answer step i is correct, so the guesser never needs the pattern
+function slotsAnswer(s, mode, pop = -1){
+  const { pattern, answer, answerOk: ok, patternLength: n } = s;
+  let html = answer.map((e, i) => `<div class="slot ${ok[i] ? "correct" : "wrong"}${i === pop ? " pop" : ""}">${e}</div>`).join("");
+  for (let i = answer.length; i < n; i++){
     if (mode === "final") html += `<div class="slot missed">${pattern[i]}</div>`;
     else if (i === answer.length) html += `<div class="slot current"></div>`;
-    else html += mode === "mine" ? `<div class="slot hidden-step">?</div>` : `<div class="slot"></div>`;
+    else html += mode === "mine" ? `<div class="slot solid"></div>` : `<div class="slot"></div>`;
   }
   return html;
 }
@@ -495,47 +797,50 @@ function renderState(){
   const firstTurn = s.round === 1 && s.creator === s.firstPlayer;
   const dice = (who) => firstTurn ? `🎲 Server picked <b>${who}</b> to go first! ` : "";
 
+  const n = s.patternLength;
+  const okCount = s.answerOk.filter(Boolean).length;
+
   if (s.phase === "create"){
-    $("stageCount").textContent = `${s.pattern.length} / ${MAX_STEPS}`;
+    $("stageCount").textContent = `${n} / ${MAX_STEPS}`;
+    const pop = popIndex(`${s.id}-${s.round}-create`, n);
     if (iCreate){
       $("turnBanner").innerHTML = dice("you") + "<b>Your turn</b> — tap buttons to make a pattern";
-      $("stageLabel").textContent = "YOUR PATTERN (OPPONENT CAN SEE IT)";
-      $("slots").innerHTML = slotsFilled(s.pattern) + (s.pattern.length < MAX_STEPS ? `<div class="slot current"></div>` : "");
-      setButtons(s.pattern.length < MAX_STEPS);
-      $("doneBtn").classList.toggle("hidden", s.pattern.length === 0);
+      $("stageLabel").textContent = "YOUR PATTERN (HIDDEN FROM OPPONENT)";
+      $("slots").innerHTML = slotsFilled(s.pattern, pop) + (n < MAX_STEPS ? `<div class="slot current"></div>` : "");
+      setButtons(n < MAX_STEPS);
+      $("doneBtn").classList.toggle("hidden", n === 0);
       $("btnHint").textContent = "Tap to add steps (max 10). Press Done when finished.";
     } else {
-      $("turnBanner").innerHTML = dice(esc(creator.name)) + `<b>${esc(creator.name)}</b> is creating — watch &amp; memorize!`;
-      $("stageLabel").textContent = `${creator.name.toUpperCase()}'S PATTERN`;
-      $("slots").innerHTML = s.pattern.length ? slotsFilled(s.pattern) : `<span class="empty-msg">Waiting for the first step…</span>`;
-      $("btnHint").textContent = "Memorize the order!";
+      $("turnBanner").innerHTML = dice(esc(creator.name)) + `<b>${esc(creator.name)}</b> is creating — watch the buttons &amp; listen!`;
+      $("stageLabel").textContent = `${creator.name.toUpperCase()}'S PATTERN (HIDDEN)`;
+      $("slots").innerHTML = n ? slotsSolid(n, pop) : `<span class="empty-msg">Waiting for the first step…</span>`;
+      $("btnHint").textContent = "The pattern is hidden — memorize the buttons that light up!";
     }
   }
 
   if (s.phase === "repeat"){
+    const pop = popIndex(`${s.id}-${s.round}-repeat`, s.answer.length);
     if (iRepeat){
       $("turnBanner").innerHTML = "<b>Your turn</b> — repeat the pattern in order";
       $("stageLabel").textContent = "YOUR PROGRESS";
-      $("stageCount").textContent = `${s.answer.length} / ${s.pattern.length}`;
-      $("slots").innerHTML = slotsAnswer(s.pattern, s.answer, "mine");
+      $("stageCount").textContent = `${s.answer.length} / ${n}`;
+      $("slots").innerHTML = slotsAnswer(s, "mine", pop);
       setButtons(true);
     } else {
-      const ok = s.answer.filter((e, i) => e === s.pattern[i]).length;
       $("turnBanner").innerHTML = `<b>${esc(repeater.name)}</b> is repeating your pattern`;
       $("stageLabel").textContent = `${repeater.name.toUpperCase()}'S ANSWER`;
-      $("stageCount").textContent = `${ok} correct`;
-      $("slots").innerHTML = slotsAnswer(s.pattern, s.answer, "watch");
+      $("stageCount").textContent = `${okCount} correct`;
+      $("slots").innerHTML = slotsAnswer(s, "watch", pop);
       $("btnHint").textContent = "Wait for your opponent to finish";
     }
   }
 
   if (s.phase === "review"){
-    const ok = s.answer.filter((e, i) => e === s.pattern[i]).length;
     const who = iRepeat ? "You" : esc(repeater.name);
-    $("turnBanner").innerHTML = `${who} got <b>${ok}</b> correct step${ok === 1 ? "" : "s"}!` + (s.round === 1 ? " Swapping roles…" : "");
+    $("turnBanner").innerHTML = `${who} got <b>${okCount}</b> correct step${okCount === 1 ? "" : "s"}!` + (s.round === 1 ? " Swapping roles…" : "");
     $("stageLabel").textContent = "RESULT";
-    $("stageCount").textContent = `${ok} / ${s.pattern.length}`;
-    $("slots").innerHTML = s.pattern.length ? slotsAnswer(s.pattern, s.answer, "final") : `<span class="empty-msg">No pattern this round</span>`;
+    $("stageCount").textContent = `${okCount} / ${n}`;
+    $("slots").innerHTML = n ? slotsAnswer(s, "final") : `<span class="empty-msg">No pattern this round</span>`;
   }
 
   syncTimer(s);

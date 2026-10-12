@@ -9,16 +9,22 @@ const path = require("path");
 const { Server } = require("socket.io");
 
 // ---------- Game settings ----------
-const PORT = 3000;
+const PORT = 3002;
 const CREATE_SECONDS = 10;   // time to create a pattern
 const REPEAT_SECONDS = 20;   // time to repeat the pattern
 const REVIEW_MS = 2500;      // pause to show results after each turn
 const MAX_PATTERN = 10;      // max pattern length
 const BUTTONS = ["🐷", "🐶", "🐦‍⬛", "🐔", "🐮"];
+// Sound sync: every press is played on BOTH screens at the same server time.
+// The server schedules it a little in the future so the slower player's message can arrive in time.
+const SOUND_LEAD_MIN = 80;   // ms
+const SOUND_LEAD_MAX = 350;  // ms
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } }); // allow index.html to be opened as a local file
+// Allow the sound files to be loaded when index.html is opened as a local file
+app.use((req, res, next) => { res.set("Access-Control-Allow-Origin", "*"); next(); });
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------- Server state ----------
@@ -27,6 +33,7 @@ let queue = [];                // ids of players in the waiting room, first come
 const matches = new Map();     // match id -> match object
 const playerMatch = new Map(); // socket.id -> match id (only for players in a match)
 const logs = [];
+const rtts = new Map();        // socket.id -> round-trip time to that client (ms), reported by the client
 let nextMatchId = 1;
 
 function newMatch(players, first, id) {
@@ -79,15 +86,21 @@ function onlineList() {
   });
 }
 
-function publicMatch(m) {
+// viewerId: who will receive this state. The repeater (guesser) must NOT receive the pattern
+// while it is being created or repeated — they only get its length, shown as solid boxes.
+// The pattern is revealed to everyone in the "review" and "ended" phases.
+function publicMatch(m, viewerId = null) {
+  const blind = viewerId === m.repeater && (m.phase === "create" || m.phase === "repeat");
   return {
     id: m.id,
     phase: m.phase,
     round: m.round,
     creator: m.creator,
     repeater: m.repeater,
-    pattern: m.pattern,
+    pattern: blind ? null : m.pattern,
+    patternLength: m.pattern.length,
     answer: m.answer,
+    answerOk: m.answer.map((e, i) => e === m.pattern[i]), // checked on the server, so the client never needs the pattern
     scores: m.scores,
     players: m.players.map((id) => ({ id, name: nameOf(id), avatar: clients.get(id)?.avatar })),
     deadline: m.deadline, // changes every time a new phase starts
@@ -111,9 +124,9 @@ function sync() {
   io.to("players").emit("matches", summary);
   for (const id of clients.keys()) {
     const m = matchOf(id);
-    io.to(id).emit("state", m ? publicMatch(m) : IDLE);
+    io.to(id).emit("state", m ? publicMatch(m, id) : IDLE);
   }
-  io.to("admin").emit("admin_state", { online, matches: allMatches().map(publicMatch), logs });
+  io.to("admin").emit("admin_state", { online, matches: allMatches().map((m) => publicMatch(m)), logs });
 }
 
 // ---------- Game flow ----------
@@ -236,16 +249,24 @@ io.on("connection", (socket) => {
     sync();
   });
 
+  // Clock sync: the client asks for the server time so it can convert "play at" times to its own clock
+  socket.on("clock", (ack) => { if (typeof ack === "function") ack(Date.now()); });
+  socket.on("rtt", (ms) => { if (Number.isFinite(ms)) rtts.set(socket.id, Math.min(2000, Math.max(0, ms))); });
+
   // Player presses a button (only affects their own match)
-  socket.on("press", (emoji) => {
+  // (each player's sound type is chosen on their own screen, so the server only needs the emoji)
+  socket.on("press", (data) => {
+    const emoji = typeof data === "string" ? data : data?.emoji;
     const m = matchOf(socket.id);
     if (!m || !BUTTONS.includes(emoji)) return;
 
     if (m.phase === "create" && socket.id === m.creator && m.pattern.length < MAX_PATTERN) {
       m.pattern.push(emoji);
+      broadcastPress(m, socket.id, emoji);
       sync();
     } else if (m.phase === "repeat" && socket.id === m.repeater && m.answer.length < m.pattern.length) {
       m.answer.push(emoji);
+      broadcastPress(m, socket.id, emoji);
       sync();
       if (m.answer.length === m.pattern.length) endTurn(m); // all steps entered, no need to wait for the timer
     }
@@ -304,7 +325,7 @@ io.on("connection", (socket) => {
   // ---- Server (admin) screen ----
   socket.on("admin_join", () => {
     socket.join("admin");
-    socket.emit("admin_state", { online: onlineList(), matches: allMatches().map(publicMatch), logs });
+    socket.emit("admin_state", { online: onlineList(), matches: allMatches().map((m) => publicMatch(m)), logs });
   });
 
   // Reset game & scores: one match (matchId) or all matches (no matchId)
@@ -319,7 +340,16 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => removePlayer(socket, "disconnected"));
 });
 
+// Tell BOTH players in the match which button was pressed, and the exact server time to play it.
+// Both screens animate the button and play the sound at that time; each player hears their own chosen sound type.
+function broadcastPress(m, by, emoji) {
+  const slowest = Math.max(...m.players.map((id) => rtts.get(id) ?? 100));
+  const lead = Math.round(Math.min(SOUND_LEAD_MAX, Math.max(SOUND_LEAD_MIN, slowest / 2 + 50)));
+  io.to(m.players).emit("pressed", { emoji, by, at: Date.now() + lead });
+}
+
 function removePlayer(socket, reason) {
+  if (reason === "disconnected") rtts.delete(socket.id);
   const c = clients.get(socket.id);
   if (!c) return; // admin screen, or already removed
   const m = matchOf(socket.id);
