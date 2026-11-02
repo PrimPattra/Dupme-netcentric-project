@@ -1,0 +1,3 @@
+# Player accounts (password hashes) live here — never commit them
+*
+!.gitignore

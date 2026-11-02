@@ -98,7 +98,7 @@ socket.on("admin_state", ({ online, matches, logs }) => {
   const statusOf = (c) => c.status === "ready" && c.queuePos ? `ready · #${c.queuePos} in line`
     : c.status === "break" ? "taking a break" : c.status;
   $("clients").innerHTML = online.length
-    ? online.map((c, i) => `<tr><td>${i + 1}</td><td>${c.avatar} ${esc(c.name)}</td><td>${esc(c.ip)}</td><td>${c.matchId ? "#" + c.matchId : "-"}</td><td><span class="pill">${statusOf(c)}</span></td></tr>`).join("")
+    ? online.map((c, i) => `<tr><td>${i + 1}</td><td>${c.avatar} ${esc(c.name)}</td><td>${esc(c.ip)}</td><td>${c.matchId ? "#" + c.matchId : "-"}</td><td><span class="pill">${statusOf(c)}</span>${c.loggedIn ? ' <span class="pill">account</span>' : ""}</td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">No clients yet</td></tr>`;
 
   if (matches.length === 0){
@@ -111,6 +111,7 @@ socket.on("admin_state", ({ online, matches, logs }) => {
       return `<div class="match">
         <div class="match-head"><b>Match #${g.id}</b><button class="small-reset" onclick="resetGame(${g.id})">↺ Reset</button></div>
         <div class="row"><span class="k">Players</span><span>${esc(a.name)} vs ${esc(b.name)}</span></div>
+        <div class="row"><span class="k">Settings</span><span>${g.mode === "hard" ? "🔀 Hard" : "Normal"} · ${g.buttons} buttons${g.players.some((p) => p.isBot) ? " · 🤖 vs AI bot" : ""}</span></div>
         <div class="row"><span class="k">First player</span><span>🎲 ${name(g.firstPlayer)}</span></div>
         <div class="row"><span class="k">Round</span><span>${g.round} / 2 · ${phase}</span></div>
         <div class="row"><span class="k">Score</span><span>${esc(a.name)} ${g.scores[a.id]} – ${g.scores[b.id]} ${esc(b.name)}</span></div>
