@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dupme
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: ADMIN_PASSWORD
+        generateValue: true
