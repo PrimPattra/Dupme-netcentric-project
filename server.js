@@ -164,7 +164,7 @@ const IDLE = { phase: "idle", players: [] };
 //  - the server screen gets everything
 function sync() {
   const online = onlineList();
-  const summary = allMatches().map((m) => ({ id: m.id, players: m.players.map(nameOf), phase: m.phase }));
+  const summary = allMatches().map((m) => ({ id: m.id, players: m.players.map(nameOf), phase: m.phase, mode: m.mode, buttons: m.buttons }));
   io.to("players").emit("online", online.map(({ ip, ...player }) => player)); // IPs are for the server screen only
   io.to("players").emit("matches", summary);
   for (const c of humans()) {
@@ -361,9 +361,40 @@ const cleanButtons = (x) => (Number.isInteger(x) && x >= MIN_BUTTONS && x <= MAX
 
 // ---------- Messages from clients ----------
 io.on("connection", (socket) => {
-  // Player enters a nickname
-  socket.on("join", ({ name, avatar } = {}) => {
-    const clean = String(name || "").trim().slice(0, 12) || "Player";
+  // A client can send null as the data; make it undefined so handlers' "= {}" defaults apply
+  socket.use((packet, next) => { if (packet[1] === null) packet[1] = undefined; next(); });
+
+  // ---- Accounts (sign up / log in happen on the first screen, before joining) ----
+  const reply = (ack, data) => typeof ack === "function" && ack(data);
+
+  socket.on("signup", ({ name, password } = {}, ack) => {
+    const r = accounts.signup(name, password);
+    if (r.token) { socketUser.set(socket.id, r.user.name.toLowerCase()); log(`New account: ${r.user.name}`); }
+    reply(ack, r);
+  });
+  socket.on("login", ({ name, password, token } = {}, ack) => {
+    // with a saved token (auto log-in) or with name + password
+    const key = token ? accounts.keyFromToken(token) : null;
+    const r = key ? { token, user: accounts.publicUser(key) } : token ? { error: "Please log in again" } : accounts.login(name, password);
+    if (r.user) socketUser.set(socket.id, r.user.name.toLowerCase());
+    reply(ack, r);
+  });
+  socket.on("logout", (token) => {
+    accounts.logout(token);
+    socketUser.delete(socket.id);
+    const c = clients.get(socket.id);
+    if (c) c.user = null;
+  });
+  socket.on("save_prefs", (prefs) => {
+    const key = socketUser.get(socket.id);
+    if (key) accounts.savePrefs(key, prefs);
+  });
+
+  // Player enters the waiting room (guest nickname, or their account name if logged in)
+  socket.on("join", ({ name, avatar, mode, buttons } = {}) => {
+    const key = socketUser.get(socket.id) ?? null;
+    const account = key ? accounts.publicUser(key) : null;
+    const clean = account?.name ?? (String(name || "").trim().slice(0, 12) || "Player");
     const ip = clientIp(socket);
     const isNew = !clients.has(socket.id);
     clients.set(socket.id, {

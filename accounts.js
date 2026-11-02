@@ -9,15 +9,17 @@ const crypto = require("crypto");
 const DATA_DIR = path.join(__dirname, "data");
 const FILE = path.join(DATA_DIR, "users.json");
 
-let db = { users: {}, sessions: {} }; // users: key (lowercase name) -> user, sessions: token -> key
+// Tables have no prototype, so names like "constructor" are just ordinary keys
+const table = (rows) => Object.assign(Object.create(null), rows);
+
+let db = { users: table(), sessions: table() }; // users: key (lowercase name) -> user, sessions: token -> key
 
 function load() {
   try {
-    db = JSON.parse(fs.readFileSync(FILE, "utf8"));
-    db.users ??= {};
-    db.sessions ??= {};
+    const saved = JSON.parse(fs.readFileSync(FILE, "utf8"));
+    db = { users: table(saved.users), sessions: table(saved.sessions) };
   } catch {
-    db = { users: {}, sessions: {} }; // first run: no file yet
+    db = { users: table(), sessions: table() }; // first run: no file yet
   }
 }
 
