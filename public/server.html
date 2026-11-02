@@ -74,10 +74,22 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt
 const socket = io();
 
 socket.on("connect", () => {
-  socket.emit("admin_join");
-  $("dot").style.background = "var(--green)";
-  $("addr").textContent = "Server running at " + location.host;
+  adminJoin(sessionStorage.getItem("adminPassword"));
 });
+function adminJoin(password){
+  socket.emit("admin_join", password, (ok) => {
+    if (ok){
+      if (password) sessionStorage.setItem("adminPassword", password);
+      $("dot").style.background = "var(--green)";
+      $("addr").textContent = "Server running at " + location.host;
+      return;
+    }
+    sessionStorage.removeItem("adminPassword");
+    const next = prompt(password ? "Wrong password. Try again:" : "Admin password:");
+    if (next) adminJoin(next);
+    else $("addr").textContent = "Password required — reload to try again";
+  });
+}
 socket.on("disconnect", () => { $("dot").style.background = "var(--red)"; $("addr").textContent = "Server stopped"; });
 
 socket.on("admin_state", ({ online, matches, logs }) => {

@@ -1,7 +1,7 @@
 // ===============================================================
 //  Dup Me — SERVER (supports many matches at the same time)
 //  Run with:  node server.js
-//  Server (admin) screen:  http://localhost:3000/server.html
+//  Server (admin) screen:  http://localhost:3002/server.html
 // ===============================================================
 const express = require("express");
 const http = require("http");
@@ -12,7 +12,8 @@ const bot = require("./bot");
 const { makeHint, publicHint } = require("./hints");
 
 // ---------- Game settings ----------
-const PORT = 3001;
+const PORT = process.env.PORT || 3002;  // hosts like Render choose the port
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD; // required for the server screen, except on this computer
 const CREATE_SECONDS = 10;   // time to create a pattern
 const REPEAT_SECONDS = 20;   // time to repeat the pattern
 const REVIEW_MS = 2500;      // pause to show results after each turn
@@ -91,6 +92,19 @@ function log(msg) {
   console.log(`[${t}] ${msg}`);
 }
 
+// The player's real address: behind a host's proxy, the socket only sees the proxy
+function clientIp(socket) {
+  const forwarded = socket.handshake.headers["x-forwarded-for"];
+  const ip = forwarded ? forwarded.split(",")[0].trim() : socket.handshake.address || "";
+  return ip.replace("::ffff:", "");
+}
+
+// Without a password set, only a browser on this same computer can open the server screen
+function canAdmin(socket, password) {
+  if (ADMIN_PASSWORD) return password === ADMIN_PASSWORD;
+  return !socket.handshake.headers["x-forwarded-for"] && ["127.0.0.1", "::1"].includes(clientIp(socket));
+}
+
 function printOnline() {
   const names = humans().map((c) => c.name).join(", ") || "-";
   console.log(`>>> Online: ${humans().length} client(s), ${matches.size} match(es): ${names}`);
@@ -150,8 +164,8 @@ const IDLE = { phase: "idle", players: [] };
 //  - the server screen gets everything
 function sync() {
   const online = onlineList();
-  const summary = allMatches().map((m) => ({ id: m.id, players: m.players.map(nameOf), phase: m.phase, mode: m.mode, buttons: m.buttons }));
-  io.to("players").emit("online", online);
+  const summary = allMatches().map((m) => ({ id: m.id, players: m.players.map(nameOf), phase: m.phase }));
+  io.to("players").emit("online", online.map(({ ip, ...player }) => player)); // IPs are for the server screen only
   io.to("players").emit("matches", summary);
   for (const c of humans()) {
     const m = matchOf(c.id);
@@ -347,38 +361,10 @@ const cleanButtons = (x) => (Number.isInteger(x) && x >= MIN_BUTTONS && x <= MAX
 
 // ---------- Messages from clients ----------
 io.on("connection", (socket) => {
-  // ---- Accounts (sign up / log in happen on the first screen, before joining) ----
-  const reply = (ack, data) => typeof ack === "function" && ack(data);
-
-  socket.on("signup", ({ name, password } = {}, ack) => {
-    const r = accounts.signup(name, password);
-    if (r.token) { socketUser.set(socket.id, r.user.name.toLowerCase()); log(`New account: ${r.user.name}`); }
-    reply(ack, r);
-  });
-  socket.on("login", ({ name, password, token } = {}, ack) => {
-    // with a saved token (auto log-in) or with name + password
-    const key = token ? accounts.keyFromToken(token) : null;
-    const r = key ? { token, user: accounts.publicUser(key) } : token ? { error: "Please log in again" } : accounts.login(name, password);
-    if (r.user) socketUser.set(socket.id, r.user.name.toLowerCase());
-    reply(ack, r);
-  });
-  socket.on("logout", (token) => {
-    accounts.logout(token);
-    socketUser.delete(socket.id);
-    const c = clients.get(socket.id);
-    if (c) c.user = null;
-  });
-  socket.on("save_prefs", (prefs) => {
-    const key = socketUser.get(socket.id);
-    if (key) accounts.savePrefs(key, prefs);
-  });
-
-  // Player enters the waiting room (guest nickname, or their account name if logged in)
-  socket.on("join", ({ name, avatar, mode, buttons } = {}) => {
-    const key = socketUser.get(socket.id) ?? null;
-    const account = key ? accounts.publicUser(key) : null;
-    const clean = account?.name ?? (String(name || "").trim().slice(0, 12) || "Player");
-    const ip = (socket.handshake.address || "").replace("::ffff:", "");
+  // Player enters a nickname
+  socket.on("join", ({ name, avatar } = {}) => {
+    const clean = String(name || "").trim().slice(0, 12) || "Player";
+    const ip = clientIp(socket);
     const isNew = !clients.has(socket.id);
     clients.set(socket.id, {
       id: socket.id, name: clean, avatar: AVATARS.includes(avatar) ? avatar : "🐷", ip, ready: true,
@@ -488,13 +474,17 @@ io.on("connection", (socket) => {
   socket.on("quit", () => removePlayer(socket, "left the game"));
 
   // ---- Server (admin) screen ----
-  socket.on("admin_join", () => {
+  socket.on("admin_join", (password, ack) => {
+    const ok = canAdmin(socket, password);
+    if (typeof ack === "function") ack(ok);
+    if (!ok) return;
     socket.join("admin");
     socket.emit("admin_state", { online: onlineList(), matches: allMatches().map((m) => publicMatch(m)), logs });
   });
 
   // Reset game & scores: one match (matchId) or all matches (no matchId)
   socket.on("admin_reset", (matchId) => {
+    if (!socket.rooms.has("admin")) return;
     const list = matchId ? [matches.get(matchId)].filter(Boolean) : allMatches();
     if (list.length === 0) log("RESET: no match to reset");
     list.forEach(resetMatch);
